@@ -1,0 +1,6 @@
+.ccls-cache/*
+*.o
+.vscode/*
+provided/*
+s-talk
+
