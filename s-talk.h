@@ -12,14 +12,11 @@ void* keyboard(void* unused);
 void* printMessage(void* unused);
 void* sender(void* remoteServer);
 void* receiver(void* remoteServer);
-void  loggerVal(char* log, int msg);
-void  loggerString(char* log);
 void  cleanupThreads();
 int   setup(struct addrinfo* remoteSetupInfo);
 void  shutdown_screen_in();
 void  shutdown_network_in();
 void  shutdown_network_out();
 void  shutdown_screen_out();
-// void List_print(List* pList);
 
 #endif

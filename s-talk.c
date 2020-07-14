@@ -8,8 +8,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#define DEBUG 0
-
 static pthread_t screen_in;
 static pthread_t network_out;
 static pthread_t network_in;
@@ -33,7 +31,7 @@ static pthread_mutex_t readReceivedListMutex   = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  receivedListEmptyCondVar = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t receivedListEmptyMutex   = PTHREAD_MUTEX_INITIALIZER;
 
-int sockFD;
+static int sockFD;
 
 int main(int argc, char* argv[])
 {
@@ -48,7 +46,6 @@ int main(int argc, char* argv[])
         return -1;
     }
     struct addrinfo* remoteSetupInfo = setupRemoteServer(argv[2], argv[3]);
-
 
     if (setup(remoteSetupInfo) == -1) {
         return -1;
@@ -153,8 +150,8 @@ struct addrinfo* setupRemoteServer(char* remoteMachineName, char* remotePortNumb
 
 void* keyboard(void* unused)
 {
-    char input[MSG_MAX_LEN] = {'\0'};
-    int  terminateIdx = 0;
+    char input[MSG_MAX_LEN] = { '\0' };
+    int  terminateIdx       = 0;
     sleep(1);
 
     while (1) {
@@ -171,6 +168,19 @@ void* keyboard(void* unused)
                 pthread_cond_signal(&inputListEmptyCondVar);
             }
             pthread_mutex_unlock(&readInputListMutex);
+        } else if (readStdin == 0) {
+            pthread_mutex_lock(&readInputListMutex);
+            {
+                char* terminate = "!\n";
+                List_add(pList_input, terminate);
+                pthread_cond_signal(&inputListEmptyCondVar);
+            }
+            pthread_mutex_unlock(&readInputListMutex);
+            cleanupThreads();
+            shutdown_network_in();
+            shutdown_screen_out();
+            shutdown_screen_in();
+            shutdown_network_out();
         }
 
         if ((strlen(input) == 2) && (input[0] == '!')) {
@@ -195,10 +205,9 @@ void* sender(void* remoteServer)
     struct addrinfo*   sinRemote = (struct addrinfo*) remoteServer;
     struct sockaddr_in sin       = *(struct sockaddr_in*) sinRemote->ai_addr;
 
-    char* ret = NULL;
-
-    int send    = -1;
-    int sin_len = sizeof(sin);
+    char* ret     = NULL;
+    int   send    = -1;
+    int   sin_len = sizeof(sin);
 
     while (1) {
         pthread_mutex_lock(&inputListEmptyMutex);
@@ -237,8 +246,9 @@ void* receiver(void* remoteServer)
     sleep(1);
     struct addrinfo* sinRemote = (struct addrinfo*) remoteServer;
 
-    int  bytesRx = -1;
-    char messageRx[MSG_MAX_LEN] = {'\0'};
+    int bytesRx = -1;
+
+    char messageRx[MSG_MAX_LEN] = { '\0' };
 
     while (1) {
         unsigned int sin_len = sizeof(sinRemote->ai_addr);
@@ -254,7 +264,6 @@ void* receiver(void* remoteServer)
             pthread_mutex_unlock(&readReceivedListMutex);
             if (messageRx[0] == '!' && strlen(messageRx) == 2) {
                 shutdown_network_in();
-                sleep(2);
             }
         } else {
             printf("Error receiving message!\n");
@@ -348,18 +357,4 @@ void shutdown_screen_out()
 static void listFreeFn(void* pItem)
 {
     listFreeCounter++;
-}
-
-void loggerVal(char* log, int msg)
-{
-    if (DEBUG) {
-        printf(log, msg);
-    }
-}
-
-void loggerString(char* log)
-{
-    if (DEBUG) {
-        printf("%s\n", log);
-    }
 }

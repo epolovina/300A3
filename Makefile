@@ -1,19 +1,18 @@
 CXX = gcc
 # CXX = clang
-CXXFLAGS = -g -Wall -Wpedantic \
-			# -fsanitize=thread -fPIE -pie
+CXXFLAGS = -g -Wall -Wpedantic
 TARGET = s-talk.o list.o #instructorList.o
 
 all: clean s-talk
 
-s-talk: s-talk.o list.o
+s-talk:
 	$(CXX) $(CXXFLAGS) $(TARGET) -pthread -o s-talk
 
-s-talk.o: 
-	$(CXX) $(CXXFLAGS) -c s-talk.c
+$@.o: 
+	$(CXX) $(CXXFLAGS) -c $@.c
 
-list.o:
-	$(CXX) $(CXXFLAGS) -c list.c
+# list.o:
+# 	$(CXX) $(CXXFLAGS) -c list.c
 
 valgrind: s-talk
 	valgrind -s --leak-check=full \
