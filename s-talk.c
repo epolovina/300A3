@@ -10,22 +10,28 @@
 
 #define DEBUG 0
 
-pthread_t threadPool[MAX_NUM_THREADS];
+static pthread_t screen_in;
+static pthread_t network_out;
+static pthread_t network_in;
+static pthread_t screen_out;
 
-static List* pList_input = NULL;
-static List* pList_send  = NULL;
+static List* pList_input    = NULL;
+static List* pList_recevied = NULL;
 
-static pthread_cond_t  s_isInputListEmptyCondVar = PTHREAD_COND_INITIALIZER;
-static pthread_mutex_t s_isInputListEmptyMutex   = PTHREAD_MUTEX_INITIALIZER;
+static void listFreeFn(void* pItem);
+static int  listFreeCounter = 0;
 
-static pthread_cond_t  s_syncOkToReadInputListCondVar = PTHREAD_COND_INITIALIZER;
-static pthread_mutex_t s_syncOkToReadInputListMutex   = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t  inputListEmptyCondVar = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t inputListEmptyMutex   = PTHREAD_MUTEX_INITIALIZER;
 
-static pthread_cond_t  s_syncOkToReadSendListCondVar = PTHREAD_COND_INITIALIZER;
-static pthread_mutex_t s_syncOkToReadSendListMutex   = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t  readInputListCondVar = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t readInputListMutex   = PTHREAD_MUTEX_INITIALIZER;
 
-static pthread_cond_t  s_isSendListEmptyCondVar = PTHREAD_COND_INITIALIZER;
-static pthread_mutex_t s_isSendListEmptyMutex   = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t  readReceivedListCondVar = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t readReceivedListMutex   = PTHREAD_MUTEX_INITIALIZER;
+
+static pthread_cond_t  receivedListEmptyCondVar = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t receivedListEmptyMutex   = PTHREAD_MUTEX_INITIALIZER;
 
 int sockFD;
 
@@ -37,21 +43,39 @@ int main(int argc, char* argv[])
         printf("s-talk [my port number] [remote machine name] [remote port number]\n");
         exit(1);
     }
-
-    setupLocalServer(argv[1]);
+    struct addrinfo* localSetupInfo = setupLocalServer(argv[1]);
+    if (localSetupInfo == NULL) {
+        return -1;
+    }
     struct addrinfo* remoteSetupInfo = setupRemoteServer(argv[2], argv[3]);
 
-    pList_input = List_create();
 
-    pthread_create(&threadPool[0], NULL, keyboard, NULL);
-    pthread_create(&threadPool[1], NULL, sender, remoteSetupInfo);
-    pthread_create(&threadPool[2], NULL, receiver, remoteSetupInfo);
-    pthread_create(&threadPool[3], NULL, printMessage, NULL);
+    if (setup(remoteSetupInfo) == -1) {
+        return -1;
+    }
 
-    pthread_join(threadPool[0], NULL);
-    pthread_join(threadPool[1], NULL);
-    pthread_join(threadPool[2], NULL);
-    pthread_join(threadPool[3], NULL);
+    freeaddrinfo(localSetupInfo);
+    freeaddrinfo(remoteSetupInfo);
+
+    cleanupThreads();
+
+    return 0;
+}
+
+int setup(struct addrinfo* remoteSetupInfo)
+{
+    pList_input    = List_create();
+    pList_recevied = List_create();
+
+    pthread_create(&screen_in, NULL, keyboard, NULL);
+    pthread_create(&network_out, NULL, sender, remoteSetupInfo);
+    pthread_create(&network_in, NULL, receiver, remoteSetupInfo);
+    pthread_create(&screen_out, NULL, printMessage, NULL);
+
+    pthread_join(screen_in, NULL);
+    pthread_join(network_out, NULL);
+    pthread_join(network_in, NULL);
+    pthread_join(screen_out, NULL);
 
     return 0;
 }
@@ -79,14 +103,15 @@ struct addrinfo* setupLocalServer(char* localPortNumberArg)
         sockFD = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
         if (sockFD == -1) {
             printf("Error: Could not create socket\n");
+            return NULL;
         }
         if (bind(sockFD, ptr->ai_addr, ptr->ai_addrlen) == -1) {
             printf("Error: Could not bind socket\n");
             close(sockFD);
+            return NULL;
         }
 
         if (ptr->ai_addr->sa_family == AF_INET) {
-            freeaddrinfo(res);
             return ptr;
         }
     }
@@ -120,7 +145,6 @@ struct addrinfo* setupRemoteServer(char* remoteMachineName, char* remotePortNumb
             void* addr = &(sin->sin_addr);
             inet_ntop(ptr->ai_family, addr, ipstr, sizeof(ipstr));
             printf("Ip of remote computer: %s\n", ipstr);
-            freeaddrinfo(res);
             return ptr;
         }
     }
@@ -129,35 +153,38 @@ struct addrinfo* setupRemoteServer(char* remoteMachineName, char* remotePortNumb
 
 void* keyboard(void* unused)
 {
-    char input[MSG_MAX_LEN];
+    char input[MSG_MAX_LEN] = {'\0'};
     int  terminateIdx = 0;
+    sleep(1);
 
-    while (input[0] != '!') {
-        // printf("Waiting for keyboard input\n");
-        if (fgets(input, MSG_MAX_LEN, stdin) == NULL) {
-            continue;
-        }
-        terminateIdx        = (strlen(input) < MSG_MAX_LEN) ? (strlen(input)) : MSG_MAX_LEN - 1;
-        input[terminateIdx] = 0;
+    while (1) {
+        printf("Message: \n");
+        int readStdin = read(STDIN_FILENO, input, MSG_MAX_LEN);
 
-        pthread_mutex_lock(&s_syncOkToReadInputListMutex);
-        {
-            List_add(pList_input, input);
-            // List_print(pList_input);
-            loggerVal("from KB: %s\n", input);
-            pthread_cond_signal(&s_syncOkToReadInputListCondVar);
+        if (readStdin > 0) {
+            terminateIdx = (strlen(input) < MSG_MAX_LEN) ? (strlen(input)) : MSG_MAX_LEN - 1;
+
+            input[terminateIdx] = 0;
+            pthread_mutex_lock(&readInputListMutex);
+            {
+                List_add(pList_input, input);
+                pthread_cond_signal(&inputListEmptyCondVar);
+            }
+            pthread_mutex_unlock(&readInputListMutex);
         }
-        pthread_mutex_unlock(&s_syncOkToReadInputListMutex);
-        loggerString("Exited first kb lock\n");
-        pthread_mutex_lock(&s_isInputListEmptyMutex);
+
+        if ((strlen(input) == 2) && (input[0] == '!')) {
+            cleanupThreads();
+            shutdown_screen_in();
+            sleep(1);
+        }
+
+        pthread_mutex_lock(&inputListEmptyMutex);
         {
-            pthread_cond_wait(&s_isInputListEmptyCondVar, &s_isInputListEmptyMutex);
-            loggerString("Resetting input buffer\n");
+            pthread_cond_wait(&inputListEmptyCondVar, &inputListEmptyMutex);
             memset(&input, 0, sizeof(input));
-            fflush(stdout);
         }
-        pthread_mutex_unlock(&s_isInputListEmptyMutex);
-        loggerString("Exited second kb lock\n");
+        pthread_mutex_unlock(&inputListEmptyMutex);
     }
 
     return NULL;
@@ -168,80 +195,77 @@ void* sender(void* remoteServer)
     struct addrinfo*   sinRemote = (struct addrinfo*) remoteServer;
     struct sockaddr_in sin       = *(struct sockaddr_in*) sinRemote->ai_addr;
 
-    char* ret;
-    int   send = -1;
+    char* ret = NULL;
+
+    int send    = -1;
+    int sin_len = sizeof(sin);
 
     while (1) {
-        loggerString("Sender waiting...\n");
-        pthread_mutex_lock(&s_syncOkToReadInputListMutex);
+        pthread_mutex_lock(&inputListEmptyMutex);
         {
-            pthread_cond_wait(&s_syncOkToReadInputListCondVar, &s_syncOkToReadInputListMutex);
-            loggerString("Entered sender lock\n");
+            pthread_cond_wait(&inputListEmptyCondVar, &inputListEmptyMutex);
+        }
+        pthread_mutex_unlock(&inputListEmptyMutex);
+
+        pthread_mutex_lock(&readInputListMutex);
+        {
             ret = NULL;
-            // List_print(pList_input);
-            ret = List_remove(pList_input);
-            // pthread_cond_signal(&s_isInputListEmptyCondVar);
-        }
-        pthread_mutex_unlock(&s_syncOkToReadInputListMutex);
 
-        if (ret[0] == '!') {
-            return NULL;
-        }
+            for (int i = 0; i < List_count(pList_input); i++) {
+                ret = List_remove(pList_input);
 
-        int sin_len = sizeof(sin);
-
-        pthread_mutex_lock(&s_syncOkToReadInputListMutex);
-        {
-            loggerVal("Sending: %s\n", ret);
-            send = sendto(sockFD, ret, strlen(ret), 0, (struct sockaddr*) &sin, sin_len);
-            if (send == -1) {
-                printf("ERROR SENDING UDP PACKET\n");
+                send = sendto(sockFD, ret, strlen(ret), 0, (struct sockaddr*) &sin, sin_len);
+                if (send == -1) {
+                    printf("ERROR SENDING UDP PACKET\n");
+                } else if (ret[0] == '!' && strlen(ret) == 2) {
+                    List_free(pList_input, listFreeFn);
+                    List_free(pList_recevied, listFreeFn);
+                    shutdown_network_in();
+                    shutdown_screen_out();
+                    shutdown_network_out();
+                }
+                pthread_cond_signal(&inputListEmptyCondVar);
             }
-            pthread_cond_signal(&s_isInputListEmptyCondVar);
         }
-        pthread_mutex_unlock(&s_syncOkToReadInputListMutex);
+        pthread_mutex_unlock(&readInputListMutex);
     }
     return NULL;
 }
 
 void* receiver(void* remoteServer)
 {
+    sleep(1);
     struct addrinfo* sinRemote = (struct addrinfo*) remoteServer;
-    int              bytesRx   = -1;
-    char             messageRx[MSG_MAX_LEN];
 
-    pList_send = List_create();
+    int  bytesRx = -1;
+    char messageRx[MSG_MAX_LEN] = {'\0'};
 
     while (1) {
         unsigned int sin_len = sizeof(sinRemote->ai_addr);
 
-        loggerString("Waiting for a message...\n");
         bytesRx = recvfrom(sockFD, messageRx, MSG_MAX_LEN, 0, sinRemote->ai_addr, &sin_len);
 
         if (bytesRx != -1) {
-            loggerVal("Received: %s\n", messageRx);
-            pthread_mutex_lock(&s_syncOkToReadSendListMutex);
+            pthread_mutex_lock(&readReceivedListMutex);
             {
-                List_add(pList_send, messageRx);
-                loggerString("added message to send list\n");
-                // List_print(pList_send);
-                pthread_cond_signal(&s_syncOkToReadSendListCondVar);
+                List_add(pList_recevied, messageRx);
+                pthread_cond_signal(&readReceivedListCondVar);
             }
-            pthread_mutex_unlock(&s_syncOkToReadSendListMutex);
+            pthread_mutex_unlock(&readReceivedListMutex);
+            if (messageRx[0] == '!' && strlen(messageRx) == 2) {
+                shutdown_network_in();
+                sleep(2);
+            }
         } else {
-            if (messageRx[0] == '!') {
-                return NULL;
-            }
+            printf("Error receiving message!\n");
         }
 
-        pthread_mutex_lock(&s_isSendListEmptyMutex);
+        pthread_mutex_lock(&receivedListEmptyMutex);
         {
-            loggerString("Receiver in mutex waiting\n");
-            pthread_cond_wait(&s_isSendListEmptyCondVar, &s_isSendListEmptyMutex);
-            loggerString("Receiver after waiting\n");
+            pthread_cond_wait(&receivedListEmptyCondVar, &receivedListEmptyMutex);
             memset(&messageRx, 0, sizeof(messageRx));
         }
-        pthread_mutex_unlock(&s_isSendListEmptyMutex);
+        pthread_mutex_unlock(&receivedListEmptyMutex);
     }
     return NULL;
 }
@@ -250,40 +274,89 @@ void* printMessage(void* unused)
 {
     char* ret;
     while (1) {
-        // if (List_count(pList_send) > 0) {
-        pthread_mutex_lock(&s_syncOkToReadSendListMutex);
+        pthread_mutex_lock(&readReceivedListMutex);
         {
-            pthread_cond_wait(&s_syncOkToReadSendListCondVar, &s_syncOkToReadSendListMutex);
-            ret = NULL;
-            loggerString("Removing from the send list");
-            ret = List_remove(pList_send);
-            loggerVal("return value after remove: \n", ret);
-            // List_print(pList_send);
+            pthread_cond_wait(&readReceivedListCondVar, &readReceivedListMutex);
+            ret = List_remove(pList_recevied);
         }
-        pthread_mutex_unlock(&s_syncOkToReadSendListMutex);
-        if (ret[0] == '!') {
-            // break;
-            return NULL;
-        }
+        pthread_mutex_unlock(&readReceivedListMutex);
 
-        pthread_mutex_lock(&s_isSendListEmptyMutex);
+        pthread_mutex_lock(&receivedListEmptyMutex);
         {
-            printf("%s", ret);
-            pthread_cond_signal(&s_isSendListEmptyCondVar);
+            printf("Received: \n");
+            write(STDOUT_FILENO, ret, MSG_MAX_LEN);
+            pthread_cond_signal(&receivedListEmptyCondVar);
         }
-        pthread_mutex_unlock(&s_isSendListEmptyMutex);
+        pthread_mutex_unlock(&receivedListEmptyMutex);
+        if (ret[0] == '!' && strlen(ret) == 2) {
+            listFreeCounter = 0;
+            List_free(pList_input, listFreeFn);
+            List_free(pList_recevied, listFreeFn);
+            pthread_cancel(screen_in);
+            shutdown_screen_in();
+            shutdown_network_out();
+            shutdown_screen_out();
+        }
         fflush(stdout);
     }
-
     return NULL;
 }
 
-void loggerVal(char* log, char* msg)
+void cleanupThreads()
+{
+    pthread_mutex_unlock(&inputListEmptyMutex);
+    pthread_mutex_unlock(&receivedListEmptyMutex);
+    pthread_mutex_unlock(&inputListEmptyMutex);
+    pthread_mutex_unlock(&receivedListEmptyMutex);
+
+    pthread_cond_destroy(&inputListEmptyCondVar);
+    pthread_mutex_destroy(&inputListEmptyMutex);
+
+    pthread_cond_destroy(&receivedListEmptyCondVar);
+    pthread_mutex_destroy(&receivedListEmptyMutex);
+
+    pthread_cond_destroy(&readInputListCondVar);
+    pthread_mutex_destroy(&readInputListMutex);
+
+    pthread_cond_destroy(&readReceivedListCondVar);
+    pthread_mutex_destroy(&readReceivedListMutex);
+
+    close(sockFD);
+}
+
+void shutdown_screen_in()
+{
+    sleep(1);
+    pthread_cancel(screen_in);
+}
+void shutdown_network_in()
+{
+    sleep(1);
+    pthread_cancel(network_in);
+}
+void shutdown_network_out()
+{
+    sleep(1);
+    pthread_cancel(network_out);
+}
+void shutdown_screen_out()
+{
+    sleep(1);
+    pthread_cancel(screen_out);
+}
+
+static void listFreeFn(void* pItem)
+{
+    listFreeCounter++;
+}
+
+void loggerVal(char* log, int msg)
 {
     if (DEBUG) {
         printf(log, msg);
     }
 }
+
 void loggerString(char* log)
 {
     if (DEBUG) {

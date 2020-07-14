@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static Node nodeArray[LIST_MAX_NUM_NODES] = { NULL };
-static List listArray[LIST_MAX_NUM_HEADS] = { NULL };
+static Node nodeArray[LIST_MAX_NUM_NODES] = { {NULL} };
+static List listArray[LIST_MAX_NUM_HEADS] = { {NULL} };
 
 static int  nodeArrayIndex = 0;  // keeps track of initial index until they are pushed into stack
 static int  listArrayIndex = 0;  // keeps track of initial index until they are pushed into stack
