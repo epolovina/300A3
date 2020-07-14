@@ -17,7 +17,6 @@ static List* pList_input    = NULL;
 static List* pList_recevied = NULL;
 
 static void listFreeFn(void* pItem);
-static int  listFreeCounter = 0;
 
 static pthread_cond_t  inputListEmptyCondVar = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t inputListEmptyMutex   = PTHREAD_MUTEX_INITIALIZER;
@@ -298,7 +297,6 @@ void* printMessage(void* unused)
         }
         pthread_mutex_unlock(&receivedListEmptyMutex);
         if (ret[0] == '!' && strlen(ret) == 2) {
-            listFreeCounter = 0;
             List_free(pList_input, listFreeFn);
             List_free(pList_recevied, listFreeFn);
             pthread_cancel(screen_in);
@@ -356,5 +354,5 @@ void shutdown_screen_out()
 
 static void listFreeFn(void* pItem)
 {
-    listFreeCounter++;
+    pItem = NULL;
 }

@@ -1,18 +1,32 @@
-CXX = gcc
-# CXX = clang
-CXXFLAGS = -g -Wall -Wpedantic
-TARGET = s-talk.o list.o #instructorList.o
+CC = gcc
+# CC = clang
+CCFLAGS = -g -Wall -Wpedantic -pthread
+# TARGET = s-talk.o list.o #instructorList.o
+TARGET = list.o sender.o receiver.o init.o main.o #instructorList.o
+# TARGET = main.o #instructorList.o
 
 all: clean s-talk
 
-s-talk:
-	$(CXX) $(CXXFLAGS) $(TARGET) -pthread -o s-talk
+s-talk: $(TARGET)
+	$(CC) $(CCFLAGS) $(TARGET) -o s-talk
 
-$@.o: 
-	$(CXX) $(CXXFLAGS) -c $@.c
 
-# list.o:
-# 	$(CXX) $(CXXFLAGS) -c list.c
+# $(TARGET): %.o: %.c
+	# $(CC) -c $(CFLAGS) $< -o $@
+
+# %.o: %.c
+# 	$(CC) $(CCFLAGS) -c $@
+
+list.o:
+	$(CC) $(CCFLAGS) -c list.c
+sender.o:
+	$(CC) $(CCFLAGS) -c sender.c
+receiver.o:
+	$(CC) $(CCFLAGS) -c receiver.c
+init.o:
+	$(CC) $(CCFLAGS) -c init.c
+main.o:
+	$(CC) $(CCFLAGS) -c main.c
 
 valgrind: s-talk
 	valgrind -s --leak-check=full \
