@@ -2,8 +2,7 @@ CC = gcc
 # CC = clang
 CCFLAGS = -g -Wall -Wpedantic -pthread
 # TARGET = s-talk.o list.o #instructorList.o
-TARGET = list.o sender.o receiver.o init.o main.o #instructorList.o
-# TARGET = main.o #instructorList.o
+TARGET = list.o sender.o receiver.o init.o main.o
 
 all: clean s-talk
 
@@ -12,7 +11,7 @@ s-talk: $(TARGET)
 
 
 # $(TARGET): %.o: %.c
-	# $(CC) -c $(CFLAGS) $< -o $@
+# 	$(CC) -c $(CCFLAGS) $< -o $@
 
 # %.o: %.c
 # 	$(CC) $(CCFLAGS) -c $@

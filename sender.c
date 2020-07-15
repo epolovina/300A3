@@ -1,12 +1,13 @@
-#include "sender.h"
 #include "init.h"
 #include "list.h"
+#include "receiver.h"
+#include "sender.h"
 #include <netdb.h>
 #include <pthread.h>
-#include <unistd.h>
 #include <string.h>
+#include <unistd.h>
 
-List* pList_input = NULL;
+static List* pList_input = NULL;
 
 pthread_cond_t  inputListEmptyCondVar = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t inputListEmptyMutex   = PTHREAD_MUTEX_INITIALIZER;
@@ -17,6 +18,7 @@ pthread_mutex_t readInputListMutex   = PTHREAD_MUTEX_INITIALIZER;
 void* keyboard(void* unused)
 {
     pList_input = List_create();
+
     char input[MSG_MAX_LEN] = { '\0' };
     int  terminateIdx       = 0;
     sleep(1);
@@ -43,7 +45,10 @@ void* keyboard(void* unused)
                 pthread_cond_signal(&inputListEmptyCondVar);
             }
             pthread_mutex_unlock(&readInputListMutex);
-            cleanupThreads();
+            // cleanupPthreads();
+            printf("Received ! -- Shutting down!!\n");
+            sleep(1);
+            // shutdownThreads();
             shutdown_network_in();
             shutdown_screen_out();
             shutdown_screen_in();
@@ -51,7 +56,8 @@ void* keyboard(void* unused)
         }
 
         if ((strlen(input) == 2) && (input[0] == '!')) {
-            cleanupThreads();
+            printf("Keyboard received !\n");
+            printf("Entered ! -- Shutting down!!\n");
             shutdown_screen_in();
             sleep(1);
         }
@@ -72,9 +78,9 @@ void* sender(void* remoteServer)
     struct addrinfo*   sinRemote = (struct addrinfo*) remoteServer;
     struct sockaddr_in sin       = *(struct sockaddr_in*) sinRemote->ai_addr;
 
+    int   sin_len = sizeof(sin);
     char* ret     = NULL;
     int   send    = -1;
-    int   sin_len = sizeof(sin);
 
     while (1) {
         pthread_mutex_lock(&inputListEmptyMutex);
@@ -95,9 +101,11 @@ void* sender(void* remoteServer)
                     printf("ERROR SENDING UDP PACKET\n");
                 } else if (ret[0] == '!' && strlen(ret) == 2) {
                     List_free(pList_input, listFreeFn);
+                    sleep(1);
                     shutdown_network_in();
                     shutdown_screen_out();
                     shutdown_network_out();
+                    cleanupPthreads();
                 }
                 pthread_cond_signal(&inputListEmptyCondVar);
             }
@@ -106,14 +114,25 @@ void* sender(void* remoteServer)
     }
     return NULL;
 }
-// void shutdown_screen_in()
-// {
-//     sleep(1);
-//     pthread_cancel(screen_in);
-// }
+void shutdown_screen_in()
+{
+    sleep(1);
+    pthread_cancel(screen_in);
+}
 
-// void shutdown_network_out()
-// {
-//     sleep(1);
-//     pthread_cancel(network_out);
-// }
+void shutdown_network_out()
+{
+    sleep(1);
+    pthread_cancel(network_out);
+}
+
+void cleanupPthreads_sender()
+{
+    pthread_mutex_unlock(&inputListEmptyMutex);
+    pthread_mutex_unlock(&inputListEmptyMutex);
+
+    pthread_mutex_destroy(&inputListEmptyMutex);
+    pthread_mutex_destroy(&readInputListMutex);
+    pthread_cond_destroy(&inputListEmptyCondVar);
+    pthread_cond_destroy(&readInputListCondVar);
+}

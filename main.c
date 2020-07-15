@@ -24,7 +24,8 @@ int main(int argc, char* argv[])
     freeaddrinfo(localSetupInfo);
     freeaddrinfo(remoteSetupInfo);
 
-    cleanupThreads();
+    cleanupPthreads();
+    closeSocket();
 
     return 0;
 }

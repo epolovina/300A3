@@ -5,5 +5,8 @@
 
 void* receiver(void* remoteServer);
 void* printMessage(void* unused);
+void shutdown_network_in();
+void shutdown_screen_out();
+void cleanupPthreads_receiver();
 
 #endif

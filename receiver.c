@@ -1,6 +1,7 @@
-#include "receiver.h"
 #include "init.h"
 #include "list.h"
+#include "sender.h"
+#include "receiver.h"
 #include <netdb.h>
 #include <pthread.h>
 #include <string.h>
@@ -19,13 +20,13 @@ void* receiver(void* remoteServer)
     pList_recevied = List_create();
     sleep(1);
     struct addrinfo* sinRemote = (struct addrinfo*) remoteServer;
+    unsigned int sin_len = sizeof(sinRemote->ai_addr);
 
     int bytesRx = -1;
 
     char messageRx[MSG_MAX_LEN] = { '\0' };
 
     while (1) {
-        unsigned int sin_len = sizeof(sinRemote->ai_addr);
 
         bytesRx = recvfrom(sockFD, messageRx, MSG_MAX_LEN, 0, sinRemote->ai_addr, &sin_len);
 
@@ -72,7 +73,11 @@ void* printMessage(void* unused)
         }
         pthread_mutex_unlock(&receivedListEmptyMutex);
         if (ret[0] == '!' && strlen(ret) == 2) {
+            printf("Received ! -- Shutting down!!\n");
             List_free(pList_recevied, listFreeFn);
+            // cleanupPthreads();
+            sleep(1);
+            // shutdownThreads();
             shutdown_screen_in();
             shutdown_network_out();
             shutdown_screen_out();
@@ -80,4 +85,26 @@ void* printMessage(void* unused)
         fflush(stdout);
     }
     return NULL;
+}
+
+void shutdown_network_in()
+{
+    sleep(1);
+    pthread_cancel(network_in);
+}
+void shutdown_screen_out()
+{
+    sleep(1);
+    pthread_cancel(screen_out);
+}
+
+void cleanupPthreads_receiver()
+{
+    pthread_mutex_unlock(&receivedListEmptyMutex);
+    pthread_mutex_unlock(&receivedListEmptyMutex);
+
+    pthread_mutex_destroy(&receivedListEmptyMutex);
+    pthread_mutex_destroy(&readReceivedListMutex);
+    pthread_cond_destroy(&receivedListEmptyCondVar);
+    pthread_cond_destroy(&readReceivedListCondVar);
 }

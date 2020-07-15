@@ -81,9 +81,6 @@ struct addrinfo* setupRemoteServer(char* remoteMachineName, char* remotePortNumb
 
 int setup(struct addrinfo* remoteSetupInfo)
 {
-    // List* pList_input    = List_create();
-    // List* pList_recevied = List_create();
-
     pthread_create(&screen_in, NULL, keyboard, NULL);
     pthread_create(&network_out, NULL, sender, remoteSetupInfo);
     pthread_create(&network_in, NULL, receiver, remoteSetupInfo);
@@ -97,48 +94,46 @@ int setup(struct addrinfo* remoteSetupInfo)
     return 0;
 }
 
-void cleanupThreads()
+void closeSocket()
 {
-    pthread_mutex_unlock(&inputListEmptyMutex);
-    pthread_mutex_unlock(&receivedListEmptyMutex);
-    pthread_mutex_unlock(&inputListEmptyMutex);
-    pthread_mutex_unlock(&receivedListEmptyMutex);
-
-    pthread_cond_destroy(&inputListEmptyCondVar);
-    pthread_mutex_destroy(&inputListEmptyMutex);
-
-    pthread_cond_destroy(&receivedListEmptyCondVar);
-    pthread_mutex_destroy(&receivedListEmptyMutex);
-
-    pthread_cond_destroy(&readInputListCondVar);
-    pthread_mutex_destroy(&readInputListMutex);
-
-    pthread_cond_destroy(&readReceivedListCondVar);
-    pthread_mutex_destroy(&readReceivedListMutex);
-
     close(sockFD);
 }
 
-void shutdown_screen_in()
+void cleanupPthreads()
 {
-    sleep(1);
-    pthread_cancel(screen_in);
+    cleanupPthreads_receiver();
+    cleanupPthreads_sender();
+    // close(sockFD);
 }
-void shutdown_network_out()
+
+void shutdownThreads()
 {
-    sleep(1);
-    pthread_cancel(network_out);
+    shutdown_network_in();
+    shutdown_network_out();
+    shutdown_screen_in();
+    shutdown_screen_out();
 }
-void shutdown_network_in()
-{
-    sleep(1);
-    pthread_cancel(network_in);
-}
-void shutdown_screen_out()
-{
-    sleep(1);
-    pthread_cancel(screen_out);
-}
+
+// void shutdown_screen_in()
+// {
+//     sleep(1);
+//     pthread_cancel(screen_in);
+// }
+// void shutdown_network_out()
+// {
+//     sleep(1);
+//     pthread_cancel(network_out);
+// }
+// void shutdown_network_in()
+// {
+//     sleep(1);
+//     pthread_cancel(network_in);
+// }
+// void shutdown_screen_out()
+// {
+//     sleep(1);
+//     pthread_cancel(screen_out);
+// }
 void listFreeFn(void* pItem)
 {
     pItem = NULL;
