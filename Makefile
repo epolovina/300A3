@@ -9,23 +9,8 @@ all: clean s-talk
 s-talk: $(TARGET)
 	$(CC) $(CCFLAGS) $(TARGET) -o s-talk
 
-
-# $(TARGET): %.o: %.c
-# 	$(CC) -c $(CCFLAGS) $< -o $@
-
-# %.o: %.c
-# 	$(CC) $(CCFLAGS) -c $@
-
-list.o:
-	$(CC) $(CCFLAGS) -c list.c
-sender.o:
-	$(CC) $(CCFLAGS) -c sender.c
-receiver.o:
-	$(CC) $(CCFLAGS) -c receiver.c
-init.o:
-	$(CC) $(CCFLAGS) -c init.c
-main.o:
-	$(CC) $(CCFLAGS) -c main.c
+$(TARGET): %.o: %.c
+	$(CC) -c $(CCFLAGS) $< -o $@
 
 valgrind: s-talk
 	valgrind -s --leak-check=full \
@@ -33,15 +18,26 @@ valgrind: s-talk
 			 --track-origins=yes \
 			 --show-reachable=yes\
 			./s-talk 5000 127.0.0.1 5001
+
 # clean:
 # 	rm -f s-talk.o *.out s-talk
+
 clean:
-	rm -f *.o *.out s-talk
+	rm -f *.o *.out s-talk a3.zip submission/*
 
 s:
 	./s-talk 5000 127.0.0.1 5001
 l:
 	./s-talk 5001 127.0.0.1 5000
 
+sub:
+	cp -t submission/\
+	 list.c list.h\
+	 receiver.c receiver.h\
+	 sender.c sender.h\
+	 init.c init.h\
+	 main.c Makefile\
+	 short.txt longText.txt lines.txt
 
-
+zip: sub
+	zip -r a3.zip submission/

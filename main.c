@@ -15,8 +15,8 @@ int main(int argc, char* argv[])
     if (localSetupInfo == NULL) {
         return -1;
     }
-    struct addrinfo* remoteSetupInfo = setupRemoteServer(argv[2], argv[3]);
 
+    struct addrinfo* remoteSetupInfo = setupRemoteServer(argv[2], argv[3]);
     if (setup(remoteSetupInfo) == -1) {
         return -1;
     }
@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
     freeaddrinfo(localSetupInfo);
     freeaddrinfo(remoteSetupInfo);
 
-    cleanupPthreads();
+    // cleanupPthreads();
     closeSocket();
 
     return 0;

@@ -10,31 +10,32 @@
 
 struct addrinfo* setupLocalServer(char* localPortNumberArg)
 {
-    int localPortNumber = atoi(localPortNumberArg);
-    printf("localPortNumber: %d\n", localPortNumber);
+    // int localPortNumber = atoi(localPortNumberArg);
+    printf("localPortNumber: %s\n", localPortNumberArg);
 
     // adapted from https://beej.us/guide/bgnet/html/#getaddrinfoprepare-to-launch
-    struct addrinfo hints, *res, *ptr;
+    struct addrinfo localInfo, *result, *ptr;
 
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family   = AF_INET;
-    hints.ai_socktype = SOCK_DGRAM;
-    hints.ai_flags    = AI_PASSIVE;
+    memset(&localInfo, 0, sizeof(localInfo));
+    localInfo.ai_family   = AF_INET;
+    localInfo.ai_socktype = SOCK_DGRAM;
+    localInfo.ai_flags    = AI_PASSIVE;
 
-    int status = getaddrinfo(NULL, localPortNumberArg, &hints, &res);
+    int status = getaddrinfo(NULL, localPortNumberArg, &localInfo, &result);
     if (status != 0) {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
         return NULL;
     }
 
-    for (ptr = res; ptr != NULL; ptr = ptr->ai_next) {
+    for (ptr = result; ptr != NULL; ptr = ptr->ai_next) {
         sockFD = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
         if (sockFD == -1) {
-            printf("Error: Could not create socket\n");
+            fprintf(stderr, "%s", "Error: Could not create socket\n");
             return NULL;
         }
+
         if (bind(sockFD, ptr->ai_addr, ptr->ai_addrlen) == -1) {
-            printf("Error: Could not bind socket\n");
+            fprintf(stderr, "%s", "Error: Could not bind socket\n");
             close(sockFD);
             return NULL;
         }
@@ -50,29 +51,29 @@ struct addrinfo* setupRemoteServer(char* remoteMachineName, char* remotePortNumb
 {
     printf("remotePortNumber: %s\n", remotePortNumber);
     printf("remoteMachineName: %s\n", remoteMachineName);
-    char ipstr[INET6_ADDRSTRLEN];
+    // char ipstr[INET6_ADDRSTRLEN];
 
-    struct addrinfo hints, *res, *ptr;
+    struct addrinfo remoteInfo, *result, *ptr;
 
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family   = AF_INET;
-    hints.ai_socktype = SOCK_DGRAM;
-    hints.ai_flags    = AI_PASSIVE;
+    memset(&remoteInfo, 0, sizeof(remoteInfo));
+    remoteInfo.ai_family   = AF_INET;
+    remoteInfo.ai_socktype = SOCK_DGRAM;
+    remoteInfo.ai_flags    = AI_PASSIVE;
 
     // adapted from https://beej.us/guide/bgnet/html/#getaddrinfoprepare-to-launch
-    int status = getaddrinfo(remoteMachineName, remotePortNumber, &hints, &res);
+    int status = getaddrinfo(remoteMachineName, remotePortNumber, &remoteInfo, &result);
     if (status != 0) {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
         return NULL;
     }
 
-    for (ptr = res; ptr != NULL; ptr = ptr->ai_next) {
+    for (ptr = result; ptr != NULL; ptr = ptr->ai_next) {
         if (ptr->ai_addr->sa_family == AF_INET) {
-            struct sockaddr_in* sin = (struct sockaddr_in*) ptr->ai_addr;
+            // struct sockaddr_in* sin = (struct sockaddr_in*) ptr->ai_addr;
 
-            void* addr = &(sin->sin_addr);
-            inet_ntop(ptr->ai_family, addr, ipstr, sizeof(ipstr));
-            printf("Ip of remote computer: %s\n", ipstr);
+            // void* addr = &(sin->sin_addr);
+            // inet_ntop(ptr->ai_family, addr, ipstr, sizeof(ipstr));
+            // printf("Ip of remote computer: %s\n", ipstr);
             return ptr;
         }
     }
@@ -81,6 +82,7 @@ struct addrinfo* setupRemoteServer(char* remoteMachineName, char* remotePortNumb
 
 int setup(struct addrinfo* remoteSetupInfo)
 {
+    isActiveSession = true;
     pthread_create(&screen_in, NULL, keyboard, NULL);
     pthread_create(&network_out, NULL, sender, remoteSetupInfo);
     pthread_create(&network_in, NULL, receiver, remoteSetupInfo);
@@ -103,7 +105,6 @@ void cleanupPthreads()
 {
     cleanupPthreads_receiver();
     cleanupPthreads_sender();
-    // close(sockFD);
 }
 
 void shutdownThreads()
@@ -114,26 +115,6 @@ void shutdownThreads()
     shutdown_screen_out();
 }
 
-// void shutdown_screen_in()
-// {
-//     sleep(1);
-//     pthread_cancel(screen_in);
-// }
-// void shutdown_network_out()
-// {
-//     sleep(1);
-//     pthread_cancel(network_out);
-// }
-// void shutdown_network_in()
-// {
-//     sleep(1);
-//     pthread_cancel(network_in);
-// }
-// void shutdown_screen_out()
-// {
-//     sleep(1);
-//     pthread_cancel(screen_out);
-// }
 void listFreeFn(void* pItem)
 {
     pItem = NULL;

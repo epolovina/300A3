@@ -1,9 +1,10 @@
+#include "receiver.h"
 #include "init.h"
 #include "list.h"
 #include "sender.h"
-#include "receiver.h"
 #include <netdb.h>
 #include <pthread.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -20,16 +21,16 @@ void* receiver(void* remoteServer)
     pList_recevied = List_create();
     sleep(1);
     struct addrinfo* sinRemote = (struct addrinfo*) remoteServer;
-    unsigned int sin_len = sizeof(sinRemote->ai_addr);
+    unsigned int     sin_len   = sizeof(sinRemote->ai_addr);
 
     int bytesRx = -1;
+    int len_rx;
 
     char messageRx[MSG_MAX_LEN] = { '\0' };
 
-    while (1) {
-
+    while (isActiveSession) {
         bytesRx = recvfrom(sockFD, messageRx, MSG_MAX_LEN, 0, sinRemote->ai_addr, &sin_len);
-
+        len_rx  = strlen(messageRx);
         if (bytesRx != -1) {
             pthread_mutex_lock(&readReceivedListMutex);
             {
@@ -37,11 +38,14 @@ void* receiver(void* remoteServer)
                 pthread_cond_signal(&readReceivedListCondVar);
             }
             pthread_mutex_unlock(&readReceivedListMutex);
-            if (messageRx[0] == '!' && strlen(messageRx) == 2) {
+            if ((messageRx[0] == '!' && len_rx == 2)
+                || (strstr((char*) &messageRx[len_rx - 2], "\n!"))) {
+                isActiveSession = false;
                 shutdown_network_in();
             }
         } else {
             printf("Error receiving message!\n");
+            exit(0);
         }
 
         pthread_mutex_lock(&receivedListEmptyMutex);
@@ -57,11 +61,13 @@ void* receiver(void* remoteServer)
 void* printMessage(void* unused)
 {
     char* ret;
-    while (1) {
+    int   len_ret;
+    while (isActiveSession) {
         pthread_mutex_lock(&readReceivedListMutex);
         {
             pthread_cond_wait(&readReceivedListCondVar, &readReceivedListMutex);
-            ret = List_remove(pList_recevied);
+            ret     = List_remove(pList_recevied);
+            len_ret = strlen(ret);
         }
         pthread_mutex_unlock(&readReceivedListMutex);
 
@@ -72,15 +78,15 @@ void* printMessage(void* unused)
             pthread_cond_signal(&receivedListEmptyCondVar);
         }
         pthread_mutex_unlock(&receivedListEmptyMutex);
-        if (ret[0] == '!' && strlen(ret) == 2) {
-            printf("Received ! -- Shutting down!!\n");
+        if ((ret[0] == '!' && len_ret == 2) || (strstr((char*) &ret[len_ret - 2], "\n!"))) {
+            printf("\n\nReceived ! -- Shutting down!!\n");
             List_free(pList_recevied, listFreeFn);
-            // cleanupPthreads();
+            isActiveSession = false;
             sleep(1);
-            // shutdownThreads();
             shutdown_screen_in();
             shutdown_network_out();
             shutdown_screen_out();
+            cleanupPthreads();
         }
         fflush(stdout);
     }

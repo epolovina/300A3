@@ -1,9 +1,10 @@
+#include "sender.h"
 #include "init.h"
 #include "list.h"
 #include "receiver.h"
-#include "sender.h"
 #include <netdb.h>
 #include <pthread.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -20,15 +21,18 @@ void* keyboard(void* unused)
     pList_input = List_create();
 
     char input[MSG_MAX_LEN] = { '\0' };
-    int  terminateIdx       = 0;
+
+    int terminateIdx = 0;
+    int len_input;
     sleep(1);
 
-    while (1) {
+    while (isActiveSession) {
         printf("Message: \n");
         int readStdin = read(STDIN_FILENO, input, MSG_MAX_LEN);
 
+        len_input = strlen(input);
         if (readStdin > 0) {
-            terminateIdx = (strlen(input) < MSG_MAX_LEN) ? (strlen(input)) : MSG_MAX_LEN - 1;
+            terminateIdx = (len_input < MSG_MAX_LEN) ? (len_input) : MSG_MAX_LEN - 1;
 
             input[terminateIdx] = 0;
             pthread_mutex_lock(&readInputListMutex);
@@ -37,27 +41,12 @@ void* keyboard(void* unused)
                 pthread_cond_signal(&inputListEmptyCondVar);
             }
             pthread_mutex_unlock(&readInputListMutex);
-        } else if (readStdin == 0) {
-            pthread_mutex_lock(&readInputListMutex);
-            {
-                char* terminate = "!\n";
-                List_add(pList_input, terminate);
-                pthread_cond_signal(&inputListEmptyCondVar);
-            }
-            pthread_mutex_unlock(&readInputListMutex);
-            // cleanupPthreads();
-            printf("Received ! -- Shutting down!!\n");
-            sleep(1);
-            // shutdownThreads();
-            shutdown_network_in();
-            shutdown_screen_out();
-            shutdown_screen_in();
-            shutdown_network_out();
         }
 
-        if ((strlen(input) == 2) && (input[0] == '!')) {
-            printf("Keyboard received !\n");
-            printf("Entered ! -- Shutting down!!\n");
+        if (((len_input <= 2) && (len_input > 0) && (input[0] == '!'))
+            || strstr((char*) &input[len_input - 2], "\n!")) {
+            printf("\n\nEntered ! -- Shutting down!!\n");
+            isActiveSession = false;
             shutdown_screen_in();
             sleep(1);
         }
@@ -80,9 +69,10 @@ void* sender(void* remoteServer)
 
     int   sin_len = sizeof(sin);
     char* ret     = NULL;
-    int   send    = -1;
+    int   len_ret;
+    int   send = -1;
 
-    while (1) {
+    while (isActiveSession) {
         pthread_mutex_lock(&inputListEmptyMutex);
         {
             pthread_cond_wait(&inputListEmptyCondVar, &inputListEmptyMutex);
@@ -91,29 +81,30 @@ void* sender(void* remoteServer)
 
         pthread_mutex_lock(&readInputListMutex);
         {
-            ret = NULL;
-
-            for (int i = 0; i < List_count(pList_input); i++) {
-                ret = List_remove(pList_input);
-
-                send = sendto(sockFD, ret, strlen(ret), 0, (struct sockaddr*) &sin, sin_len);
-                if (send == -1) {
-                    printf("ERROR SENDING UDP PACKET\n");
-                } else if (ret[0] == '!' && strlen(ret) == 2) {
-                    List_free(pList_input, listFreeFn);
-                    sleep(1);
-                    shutdown_network_in();
-                    shutdown_screen_out();
-                    shutdown_network_out();
-                    cleanupPthreads();
-                }
-                pthread_cond_signal(&inputListEmptyCondVar);
+            ret     = NULL;
+            ret     = List_remove(pList_input);
+            len_ret = strlen(ret);
+            send    = sendto(sockFD, ret, strlen(ret), 0, (struct sockaddr*) &sin, sin_len);
+            if (send == -1) {
+                printf("ERROR SENDING UDP PACKET\n");
+                exit(0);
+            } else if ((ret[0] == '!' && len_ret == 2)
+                       || (strstr((char*) &ret[len_ret - 2], "\n!"))) {
+                isActiveSession = false;
+                List_free(pList_input, listFreeFn);
+                sleep(1);
+                shutdown_network_in();
+                shutdown_screen_out();
+                shutdown_network_out();
+                cleanupPthreads();
             }
+            pthread_cond_signal(&inputListEmptyCondVar);
         }
         pthread_mutex_unlock(&readInputListMutex);
     }
     return NULL;
 }
+
 void shutdown_screen_in()
 {
     sleep(1);
