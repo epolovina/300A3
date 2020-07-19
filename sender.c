@@ -10,11 +10,11 @@
 
 static List* pList_input = NULL;
 
-pthread_cond_t  inputListEmptyCondVar = PTHREAD_COND_INITIALIZER;
-pthread_mutex_t inputListEmptyMutex   = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t  inputListEmptyCondVar = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t inputListEmptyMutex   = PTHREAD_MUTEX_INITIALIZER;
 
-pthread_cond_t  readInputListCondVar = PTHREAD_COND_INITIALIZER;
-pthread_mutex_t readInputListMutex   = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t  readInputListCondVar = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t readInputListMutex   = PTHREAD_MUTEX_INITIALIZER;
 
 void* keyboard(void* unused)
 {

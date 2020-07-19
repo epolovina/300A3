@@ -8,13 +8,13 @@
 #include <string.h>
 #include <unistd.h>
 
-List* pList_recevied = NULL;
+static List* pList_recevied = NULL;
 
-pthread_cond_t  readReceivedListCondVar = PTHREAD_COND_INITIALIZER;
-pthread_mutex_t readReceivedListMutex   = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t  readReceivedListCondVar = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t readReceivedListMutex   = PTHREAD_MUTEX_INITIALIZER;
 
-pthread_cond_t  receivedListEmptyCondVar = PTHREAD_COND_INITIALIZER;
-pthread_mutex_t receivedListEmptyMutex   = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t  receivedListEmptyCondVar = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t receivedListEmptyMutex   = PTHREAD_MUTEX_INITIALIZER;
 
 void* receiver(void* remoteServer)
 {
