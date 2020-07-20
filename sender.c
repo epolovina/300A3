@@ -41,11 +41,14 @@ void* keyboard(void* unused)
                 pthread_cond_signal(&inputListEmptyCondVar);
             }
             pthread_mutex_unlock(&readInputListMutex);
+        } else if (readStdin == 0) {
+            //EOF...
+            //TODO: exit at EOF
         }
 
-        if (((len_input <= 2) && (len_input > 0) && (input[0] == '!'))
-            || strstr((char*) &input[len_input - 2], "\n!")) {
-            printf("\n\nEntered ! -- Shutting down!!\n");
+        if (((input[0] == '!') && (input[1] == '\n')) || strstr(input, "\n!\n")
+            || (strstr((char*) &input[len_input - 2], "\n!"))) {
+            printf("\nEntered ! -- Shutting down!!\n");
             isActiveSession = false;
             shutdown_screen_in();
             sleep(1);
@@ -69,8 +72,14 @@ void* sender(void* remoteServer)
 
     int   sin_len = sizeof(sin);
     char* ret     = NULL;
-    int   len_ret;
-    int   send = -1;
+
+    char* pfound_notEnd    = NULL;
+    char* pfound_end       = NULL;
+    char* pfound_beginning = NULL;
+    bool  exitProgram      = false;
+
+    int len_ret;
+    int send;
 
     while (isActiveSession) {
         pthread_mutex_lock(&inputListEmptyMutex);
@@ -84,12 +93,38 @@ void* sender(void* remoteServer)
             ret     = NULL;
             ret     = List_remove(pList_input);
             len_ret = strlen(ret);
-            send    = sendto(sockFD, ret, strlen(ret), 0, (struct sockaddr*) &sin, sin_len);
+
+            pfound_notEnd    = strstr(ret, "\n!\n");
+            pfound_end       = strstr((char*) &ret[len_ret - 2], "\n!");
+            pfound_beginning = strstr((char*) &ret[0], "!\n");
+
+            if (pfound_notEnd == NULL && pfound_end == NULL && pfound_beginning == NULL) {
+                send = sendto(sockFD, ret, strlen(ret), 0, (struct sockaddr*) &sin, sin_len);
+            } else {
+                char* truncatedString = (char*) calloc(512, sizeof(char));
+
+                int pos;
+                if (pfound_beginning != NULL) {
+                    pos = pfound_beginning - ret;
+                    strncpy(truncatedString, ret, pos + 2);
+                    send = sendto(
+                        sockFD, truncatedString, strlen(ret), 0, (struct sockaddr*) &sin, sin_len);
+                } else if (pfound_notEnd != NULL) {
+                    pos = pfound_notEnd - ret;
+                    strncpy(truncatedString, ret, pos + 3);
+                    send = sendto(
+                        sockFD, truncatedString, strlen(ret), 0, (struct sockaddr*) &sin, sin_len);
+                } else {
+                    send = sendto(sockFD, ret, strlen(ret), 0, (struct sockaddr*) &sin, sin_len);
+                }
+                free(truncatedString);
+                exitProgram = true;
+            }
+
             if (send == -1) {
                 printf("ERROR SENDING UDP PACKET\n");
                 exit(0);
-            } else if ((ret[0] == '!' && len_ret == 2)
-                       || (strstr((char*) &ret[len_ret - 2], "\n!"))) {
+            } else if (((ret[0] == '!') && (ret[1] == '\n')) || exitProgram) {
                 isActiveSession = false;
                 List_free(pList_input, listFreeFn);
                 sleep(1);

@@ -38,7 +38,7 @@ void* receiver(void* remoteServer)
                 pthread_cond_signal(&readReceivedListCondVar);
             }
             pthread_mutex_unlock(&readReceivedListMutex);
-            if ((messageRx[0] == '!' && len_rx == 2)
+            if (((messageRx[0] == '!') && (messageRx[1] == '\n')) || (strstr(messageRx, "\n!\n"))
                 || (strstr((char*) &messageRx[len_rx - 2], "\n!"))) {
                 isActiveSession = false;
                 shutdown_network_in();
@@ -61,7 +61,12 @@ void* receiver(void* remoteServer)
 void* printMessage(void* unused)
 {
     char* ret;
+    char* pfound_notEnd    = NULL;
+    char* pfound_end       = NULL;
+    char* pfound_beginning = NULL;
+    bool  exitProgram      = false;
     int   len_ret;
+
     while (isActiveSession) {
         pthread_mutex_lock(&readReceivedListMutex);
         {
@@ -73,12 +78,35 @@ void* printMessage(void* unused)
 
         pthread_mutex_lock(&receivedListEmptyMutex);
         {
-            printf("Received: \n");
-            write(STDOUT_FILENO, ret, MSG_MAX_LEN);
+            pfound_notEnd    = strstr(ret, "\n!\n");
+            pfound_end       = strstr((char*) &ret[len_ret - 2], "\n!");
+            pfound_beginning = strstr((char*) &ret[0], "!\n");
+
+            printf("\nReceived: \n");
+            if (pfound_notEnd == NULL && pfound_end == NULL) {
+                write(STDOUT_FILENO, ret, MSG_MAX_LEN);
+            } else {
+                char* truncatedString = (char*) calloc(512, sizeof(char));
+                int   pos;
+                if (pfound_beginning != NULL) {
+                    pos = pfound_beginning - ret;
+                    strncpy(truncatedString, ret, pos + 2);
+                    write(STDOUT_FILENO, truncatedString, MSG_MAX_LEN);
+                } else if (pfound_notEnd != NULL) {
+                    pos = pfound_notEnd - ret;
+                    strncpy(truncatedString, ret, pos + 3);
+                    write(STDOUT_FILENO, truncatedString, MSG_MAX_LEN);
+                } else {
+                    write(STDOUT_FILENO, ret, MSG_MAX_LEN);
+                }
+                exitProgram = true;
+                free(truncatedString);
+            }
             pthread_cond_signal(&receivedListEmptyCondVar);
         }
         pthread_mutex_unlock(&receivedListEmptyMutex);
-        if ((ret[0] == '!' && len_ret == 2) || (strstr((char*) &ret[len_ret - 2], "\n!"))) {
+
+        if ((((ret[0] == '!') && (ret[1] == '\n')) || exitProgram)) {
             printf("\n\nReceived ! -- Shutting down!!\n");
             List_free(pList_recevied, listFreeFn);
             isActiveSession = false;
@@ -88,7 +116,6 @@ void* printMessage(void* unused)
             shutdown_screen_out();
             cleanupPthreads();
         }
-        fflush(stdout);
     }
     return NULL;
 }
