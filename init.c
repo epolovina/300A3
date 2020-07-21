@@ -51,7 +51,7 @@ struct addrinfo* setupRemoteServer(char* remoteMachineName, char* remotePortNumb
 {
     printf("remotePortNumber: %s\n", remotePortNumber);
     printf("remoteMachineName: %s\n", remoteMachineName);
-    // char ipstr[INET6_ADDRSTRLEN];
+    char ipstr[INET6_ADDRSTRLEN];
 
     struct addrinfo remoteInfo, *result, *ptr;
 
@@ -64,16 +64,17 @@ struct addrinfo* setupRemoteServer(char* remoteMachineName, char* remotePortNumb
     int status = getaddrinfo(remoteMachineName, remotePortNumber, &remoteInfo, &result);
     if (status != 0) {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
+        exit(0);
         return NULL;
     }
 
     for (ptr = result; ptr != NULL; ptr = ptr->ai_next) {
         if (ptr->ai_addr->sa_family == AF_INET) {
-            // struct sockaddr_in* sin = (struct sockaddr_in*) ptr->ai_addr;
+            struct sockaddr_in* sin = (struct sockaddr_in*) ptr->ai_addr;
 
-            // void* addr = &(sin->sin_addr);
-            // inet_ntop(ptr->ai_family, addr, ipstr, sizeof(ipstr));
-            // printf("Ip of remote computer: %s\n", ipstr);
+            void* addr = &(sin->sin_addr);
+            inet_ntop(ptr->ai_family, addr, ipstr, sizeof(ipstr));
+            printf("Ip of remote computer: %s\n", ipstr);
             return ptr;
         }
     }
@@ -83,10 +84,22 @@ struct addrinfo* setupRemoteServer(char* remoteMachineName, char* remotePortNumb
 int setup(struct addrinfo* remoteSetupInfo)
 {
     isActiveSession = true;
-    pthread_create(&screen_in, NULL, keyboard, NULL);
-    pthread_create(&network_out, NULL, sender, remoteSetupInfo);
-    pthread_create(&network_in, NULL, receiver, remoteSetupInfo);
-    pthread_create(&screen_out, NULL, printMessage, NULL);
+
+    if (pthread_create(&network_out, NULL, sender, remoteSetupInfo) != 0) {
+        return -1;
+    }
+
+    if (pthread_create(&network_in, NULL, receiver, remoteSetupInfo) != 0) {
+        return -1;
+    }
+
+    if (pthread_create(&screen_out, NULL, printMessage, NULL) != 0) {
+        return -1;
+    }
+
+    if (pthread_create(&screen_in, NULL, keyboard, NULL) != 0) {
+        return -1;
+    }
 
     pthread_join(screen_in, NULL);
     pthread_join(network_out, NULL);
@@ -105,14 +118,6 @@ void cleanupPthreads()
 {
     cleanupPthreads_receiver();
     cleanupPthreads_sender();
-}
-
-void shutdownThreads()
-{
-    shutdown_network_in();
-    shutdown_network_out();
-    shutdown_screen_in();
-    shutdown_screen_out();
 }
 
 void listFreeFn(void* pItem)
