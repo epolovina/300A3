@@ -31,7 +31,6 @@ void* receiver(void* remoteServer)
     while (1) {
         memset(&messageRx, 0, sizeof(messageRx));
         bytesRx = recvfrom(sockFD, messageRx, MSG_MAX_LEN, 0, sinRemote->ai_addr, &sin_len);
-        printf("\nReceived: %d\n", bytesRx);
         char* dynamicBuffer = (char*) malloc(MSG_MAX_LEN);
         memcpy(dynamicBuffer, messageRx, MSG_MAX_LEN);
 

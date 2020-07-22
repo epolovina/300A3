@@ -181,7 +181,6 @@ void* sender(void* remoteServer)
                 // printf("\nremoved: %s\n", ret);
                 send = sendto(sockFD, ret, strlen(ret), 0, (struct sockaddr*) &sin, sin_len);
 
-                printf("sent %d bytes\n", send);
                 if (send == -1) {
                     printf("ERROR SENDING UDP PACKET\n");
                     exit(0);

@@ -24,6 +24,8 @@ valgrind: s-talk
 
 clean:
 	rm -f *.o *.out s-talk a3.zip submission/*
+cleansub:
+	rm -f *.o *.out s-talk
 
 s:
 	./s-talk 5000 127.0.0.1 5001
@@ -37,7 +39,7 @@ sub:
 	 sender.c sender.h\
 	 init.c init.h\
 	 main.c Makefile\
-	 short.txt longText.txt lines.txt
+	 README.md
 
 zip: sub
 	zip -r a3.zip submission/
