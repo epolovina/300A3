@@ -11,7 +11,7 @@
 struct addrinfo* setupLocalServer(char* localPortNumberArg)
 {
     // int localPortNumber = atoi(localPortNumberArg);
-    printf("localPortNumber: %s\n", localPortNumberArg);
+    fprintf(stdout, "localPortNumber: %s\n", localPortNumberArg);
 
     // adapted from https://beej.us/guide/bgnet/html/#getaddrinfoprepare-to-launch
     struct addrinfo localInfo, *result, *ptr;
@@ -49,8 +49,8 @@ struct addrinfo* setupLocalServer(char* localPortNumberArg)
 
 struct addrinfo* setupRemoteServer(char* remoteMachineName, char* remotePortNumber)
 {
-    printf("remotePortNumber: %s\n", remotePortNumber);
-    printf("remoteMachineName: %s\n", remoteMachineName);
+    fprintf(stdout, "remotePortNumber: %s\n", remotePortNumber);
+    fprintf(stdout, "remoteMachineName: %s\n", remoteMachineName);
     char ipstr[INET6_ADDRSTRLEN];
 
     struct addrinfo remoteInfo, *result, *ptr;
@@ -74,7 +74,7 @@ struct addrinfo* setupRemoteServer(char* remoteMachineName, char* remotePortNumb
 
             void* addr = &(sin->sin_addr);
             inet_ntop(ptr->ai_family, addr, ipstr, sizeof(ipstr));
-            printf("Ip of remote computer: %s\n", ipstr);
+            fprintf(stdout, "Ip of remote computer: %s\n", ipstr);
             return ptr;
         }
     }
@@ -85,6 +85,9 @@ int setup(struct addrinfo* remoteSetupInfo)
 {
     isActiveSession = true;
 
+    if (pthread_create(&screen_in, NULL, keyboard, NULL) != 0) {
+        return -1;
+    }
     if (pthread_create(&network_out, NULL, sender, remoteSetupInfo) != 0) {
         return -1;
     }
@@ -97,9 +100,6 @@ int setup(struct addrinfo* remoteSetupInfo)
         return -1;
     }
 
-    if (pthread_create(&screen_in, NULL, keyboard, NULL) != 0) {
-        return -1;
-    }
 
     pthread_join(screen_in, NULL);
     pthread_join(network_out, NULL);
