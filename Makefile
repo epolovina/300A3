@@ -1,15 +1,19 @@
 CC = gcc
-# CC = clang
 CCFLAGS = -g -Wall -Wpedantic -pthread
-# TARGET = s-talk.o list.o #instructorList.o
-TARGET = list.o sender.o receiver.o init.o main.o
+BUILD_DIR = build
+OBJECTS = list.o sender.o receiver.o init.o main.o
+TARGET = s-talk
 
-all: clean s-talk
+OBJECT := $(addprefix $(BUILD_DIR)/,$(OBJECTS))
 
-s-talk: $(TARGET)
-	$(CC) $(CCFLAGS) $(TARGET) -o s-talk
+.PHONY: all valgrind clean
 
-$(TARGET): %.o: %.c
+all: clean $(TARGET)
+
+$(TARGET): $(OBJECT) 
+	$(CC) $(CCFLAGS) $(OBJECT) -o $(BUILD_DIR)/$(TARGET)
+
+$(BUILD_DIR)/%.o: %.c | $(BUILD_DIR)
 	$(CC) -c $(CCFLAGS) $< -o $@
 
 valgrind: s-talk
@@ -19,11 +23,8 @@ valgrind: s-talk
 			 --show-reachable=yes\
 			./s-talk 5000 127.0.0.1 5001
 
-# clean:
-# 	rm -f s-talk.o *.out s-talk
-
 clean:
-	rm -f *.o *.out s-talk a3.zip submission/*
+	rm -rf *.o *.out s-talk a3.zip submission/* build
 cleansub:
 	rm -f *.o *.out s-talk
 
@@ -43,3 +44,6 @@ sub:
 
 zip: sub
 	zip -r a3.zip submission/
+
+$(BUILD_DIR):
+	mkdir $@

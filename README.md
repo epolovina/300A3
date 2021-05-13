@@ -1,3 +1,19 @@
+# S-talk
+
+This program allows for communication between 2 servers using
+UDP sockets
+## To run
+```make```
+
+Then open up 2 terminals
+On Terminal 1:\
+```./build/s-talk 3000 127.0.0.1 3001```
+
+On Terminal 2:\
+```./build/s-talk 3001 127.0.0.1 3000```
+
+
+## Notes
 * tested with valgrind and there are no memory leaks but
     there is an error for reading invalid size 1 when i check for !\n.
 
